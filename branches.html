@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>الفروع والمجموعات - أكاديمية الرياض للكاراتيه</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      color: #222;
+    }
+
+    header {
+      background: #111827;
+      color: white;
+      padding: 22px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0 0 8px;
+      font-size: 25px;
+    }
+
+    header p {
+      margin: 0;
+      color: #d1d5db;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 22px;
+      margin-bottom: 25px;
+      box-shadow: 0 3px 12px rgba(0,0,0,0.08);
+    }
+
+    .card h2 {
+      margin-top: 0;
+      color: #111827;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 12px 22px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 18px;
+    }
+
+    .add-btn {
+      background: #111827;
+      color: white;
+    }
+
+    .back-btn {
+      background: #e5e7eb;
+      color: #111827;
+      margin-right: 10px;
+    }
+
+    .message {
+      margin-top: 15px;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .success {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th,
+    td {
+      padding: 13px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: center;
+    }
+
+    th {
+      background: #f3f4f6;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #6b7280;
+    }
+
+    footer {
+      text-align: center;
+      padding: 25px;
+      color: #6b7280;
+    }
+
+    @media (max-width: 700px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>أكاديمية الرياض للكاراتيه</h1>
+  <p>إدارة الفروع والمجموعات</p>
+</header>
+
+<div class="container">
+
+  <!-- إضافة فرع -->
+  <div class="card">
+    <h2>📍 إضافة فرع / مجموعة</h2>
+
+    <div class="form-grid">
+
+      <div>
+        <label>اسم الفرع والمجموعة</label>
+        <input
+          type="text"
+          id="branchName"
+          placeholder="مثال: الرياض - مجموعة 1"
+        >
+      </div>
+
+      <div>
+        <label>الموقع</label>
+        <input
+          type="text"
+          id="branchLocation"
+          placeholder="مثال: الرياض"
+        >
+      </div>
+
+      <div>
+        <label>رقم المجموعة</label>
+        <input
+          type="number"
+          id="branchGroup"
+          placeholder="مثال: 1"
+          min="1"
+        >
+      </div>
+
+    </div>
+
+    <button class="add-btn" onclick="addBranch()">
+      ➕ إضافة الفرع
+    </button>
+
+    <button class="back-btn" onclick="goBack()">
+      ↩ العودة للرئيسية
+    </button>
+
+    <div id="message" class="message"></div>
+  </div>
+
+
+  <!-- قائمة الفروع -->
+  <div class="card">
+
+    <h2>📋 الفروع والمجموعات المسجلة</h2>
+
+    <div id="loading" class="loading">
+      جاري تحميل الفروع...
+    </div>
+
+    <table id="branchesTable" style="display:none;">
+
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>الفرع / المجموعة</th>
+          <th>الموقع</th>
+          <th>رقم المجموعة</th>
+        </tr>
+      </thead>
+
+      <tbody id="branchesBody">
+      </tbody>
+
+    </table>
+
+  </div>
+
+</div>
+
+<footer>
+  Alriyad Karate Academy © 2026
+</footer>
+
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<!-- ملفات المشروع -->
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+
+
+<script>
+
+  // تحميل الفروع عند فتح الصفحة
+  window.addEventListener("DOMContentLoaded", loadBranches);
+
+
+  async function loadBranches() {
+
+    const loading = document.getElementById("loading");
+    const table = document.getElementById("branchesTable");
+    const body = document.getElementById("branchesBody");
+
+    loading.style.display = "block";
+    table.style.display = "none";
+
+    try {
+
+      const branches = await getBranches();
+
+      body.innerHTML = "";
+
+      if (branches.length === 0) {
+
+        body.innerHTML = `
+          <tr>
+            <td colspan="4">
+              لا توجد فروع مسجلة حتى الآن
+            </td>
+          </tr>
+        `;
+
+      } else {
+
+        branches.forEach((branch, index) => {
+
+          const row = document.createElement("tr");
+
+          row.innerHTML = `
+            <td>${index + 1}</td>
+            <td>${branch.name || ""}</td>
+            <td>${branch.location || ""}</td>
+            <td>${branch.group || ""}</td>
+          `;
+
+          body.appendChild(row);
+
+        });
+
+      }
+
+      loading.style.display = "none";
+      table.style.display = "table";
+
+    } catch (error) {
+
+      console.error(error);
+
+      loading.textContent =
+        "حدث خطأ أثناء تحميل الفروع";
+
+    }
+
+  }
+
+
+  async function addBranch() {
+
+    const name =
+      document.getElementById("branchName").value.trim();
+
+    const location =
+      document.getElementById("branchLocation").value.trim();
+
+    const group =
+      Number(document.getElementById("branchGroup").value);
+
+    if (!name || !location || !group) {
+
+      showMessage(
+        "من فضلك أكمل جميع البيانات",
+        "error"
+      );
+
+      return;
+    }
+
+
+    try {
+
+      await db.collection("branches").add({
+
+        name: name,
+
+        location: location,
+
+        group: group,
+
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+
+      });
+
+
+      showMessage(
+        "تمت إضافة الفرع والمجموعة بنجاح ✅",
+        "success"
+      );
+
+
+      document.getElementById("branchName").value = "";
+      document.getElementById("branchLocation").value = "";
+      document.getElementById("branchGroup").value = "";
+
+
+      await loadBranches();
+
+    } catch (error) {
+
+      console.error(error);
+
+      showMessage(
+        "حدث خطأ أثناء إضافة الفرع. تأكد من صلاحيات Firebase.",
+        "error"
+      );
+
+    }
+
+  }
+
+
+  function showMessage(text, type) {
+
+    const message =
+      document.getElementById("message");
+
+    message.textContent = text;
+
+    message.className =
+      "message " + type;
+
+    message.style.display = "block";
+
+    setTimeout(() => {
+
+      message.style.display = "none";
+
+    }, 4000);
+
+  }
+
+
+  function goBack() {
+
+    window.location.href = "index.html";
+
+  }
+
+</script>
+
+</body>
+</html>
