@@ -158,7 +158,11 @@
 
 <script>
 
-  const auth = firebase.auth();
+  if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+
+const auth = firebase.auth();
 
   const loginForm =
     document.getElementById("loginForm");
