@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إدارة اللاعبين | أكاديمية الرياض للكاراتيه</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Arial,sans-serif;background:#f3f6fa;margin:0;color:#172b4d}
+header{background:#12345a;color:white;padding:20px;text-align:center}
+main{max-width:1100px;margin:24px auto;padding:0 14px}
+.card{background:white;padding:20px;border-radius:12px;margin-bottom:20px;box-shadow:0 2px 9px #00000010}
+h2{margin-top:0;font-size:21px}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:13px}
+label{display:block;font-size:14px;margin-bottom:6px}
+input,select{width:100%;padding:11px;border:1px solid #ccd5e0;border-radius:7px;font-size:15px;background:white}
+button,.back{border:0;border-radius:7px;padding:11px 17px;background:#176b45;color:white;cursor:pointer;font-size:15px;text-decoration:none;display:inline-block}
+button:disabled{opacity:.6}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.secondary{background:#385b7c}
+.danger{background:#b42318}
+table{width:100%;border-collapse:collapse;min-width:750px}
+th,td{padding:11px;border-bottom:1px solid #e5eaf0;text-align:right}
+th{background:#edf2f7}
+.table-wrap{overflow-x:auto}
+#message{margin-top:12px;line-height:1.7}
+.count{color:#176b45;font-weight:bold}
+</style>
+</head>
+<body>
+<header>
+<h1>أكاديمية الرياض للكاراتيه</h1>
+<p>إدارة وتسجيل اللاعبين</p>
+</header>
+
+<main>
+<div class="actions">
+<a class="back" href="index.html">العودة للرئيسية</a>
+</div>
+
+<section class="card">
+<h2 id="formTitle">تسجيل لاعب جديد</h2>
+<form id="playerForm">
+<div class="form">
+<div><label for="name">اسم اللاعب بالكامل *</label><input id="name" required maxlength="100"></div>
+<div><label for="phone">رقم هاتف ولي الأمر *</label><input id="phone" type="tel" required maxlength="20"></div>
+<div><label for="birthDate">تاريخ الميلاد</label><input id="birthDate" type="date"></div>
+<div><label for="gender">النوع</label><select id="gender"><option value="">اختر</option><option>ذكر</option><option>أنثى</option></select></div>
+<div><label for="branch">الفرع / المجموعة</label><input id="branch" placeholder="مثال: الرياض - مجموعة 1" maxlength="100"></div>
+<div><label for="belt">الحزام الحالي</label><select id="belt"><option>أبيض</option><option>أصفر</option><option>برتقالي</option><option>أخضر</option><option>أزرق</option><option>بني</option><option>أسود</option></select></div>
+<div><label for="startDate">تاريخ الاشتراك</label><input id="startDate" type="date"></div>
+<div><label for="notes">ملاحظات</label><input id="notes" maxlength="300"></div>
+</div>
+<div class="actions">
+<button id="saveBtn" type="submit">حفظ اللاعب</button>
+<button class="secondary" type="button" id="cancelBtn" hidden>إلغاء التعديل</button>
+</div>
+<div id="message" role="status"></div>
+</form>
+</section>
+
+<section class="card">
+<h2>اللاعبون المسجلون</h2>
+<div class="form">
+<div><label for="search">بحث بالاسم أو الهاتف</label><input id="search" placeholder="اكتب اسم اللاعب أو رقم الهاتف"></div>
+</div>
+<p>عدد النتائج: <span class="count" id="count">0</span></p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>الاسم</th><th>الهاتف</th><th>الميلاد</th><th>الفرع / المجموعة</th><th>الحزام</th><th>الإجراءات</th></tr></thead>
+<tbody id="playersTable"><tr><td colspan="6">جارٍ تحميل البيانات...</td></tr></tbody>
+</table>
+</div>
+</section>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+let db;
+let editingId = null;
+let allPlayers = [];
+
+const form = document.getElementById("playerForm");
+const message = document.getElementById("message");
+const saveBtn = document.getElementById("saveBtn");
+const tbody = document.getElementById("playersTable");
+
+function showMessage(text, error=false) {
+  message.textContent = text;
+  message.style.color = error ? "#b42318" : "#176b45";
+}
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;",
+    '"':"&quot;", "'":"&#39;"
+  }[c]));
+}
+
+function resetForm() {
+  form.reset();
+  editingId = null;
+  document.getElementById("formTitle").textContent = "تسجيل لاعب جديد";
+  saveBtn.textContent = "حفظ اللاعب";
+  document.getElementById("cancelBtn").hidden = true;
+}
+
+function renderPlayers() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const filtered = allPlayers.filter(p =>
+    String(p.name || "").toLowerCase().includes(q) ||
+    String(p.phone || "").toLowerCase().includes(q)
+  );
+
+  document.getElementById("count").textContent = filtered.length;
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="6">لا توجد بيانات مطابقة.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(p => `
+    <tr>
+      <td>${esc(p.name)}</td>
+      <td>${esc(p.phone)}</td>
+      <td>${esc(p.birthDate)}</td>
+      <td>${esc(p.branch)}</td>
+      <td>${esc(p.belt)}</td>
+      <td>
+        <button type="button" class="secondary" data-edit="${esc(p.id)}">تعديل</button>
+        <button type="button" class="danger" data-delete="${esc(p.id)}">حذف</button>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function loadPlayers() {
+  try {
+    const snapshot = await db.collection("players").get();
+    allPlayers = snapshot.docs.map(doc => ({id:doc.id, ...doc.data()}));
+    allPlayers.sort((a,b) => String(a.name || "").localeCompare(String(b.name || ""), "ar"));
+    renderPlayers();
+  } catch (error) {
+    tbody.innerHTML = '<tr><td colspan="6">تعذر تحميل اللاعبين. تأكد من تسجيل الدخول وصلاحيات Firestore.</td></tr>';
+    console.error(error);
+  }
+}
+
+form.addEventListener("submit", async event => {
+  event.preventDefault();
+
+  if (!firebase.auth().currentUser) {
+    showMessage("انتهت جلسة الدخول. سجّل الدخول أولًا ثم أعد المحاولة.", true);
+    return;
+  }
+
+  const data = {
+    name: document.getElementById("name").value.trim(),
+    phone: document.getElementById("phone").value.trim(),
+    birthDate: document.getElementById("birthDate").value,
+    gender: document.getElementById("gender").value,
+    branch: document.getElementById("branch").value.trim(),
+    belt: document.getElementById("belt").value,
+    startDate: document.getElementById("startDate").value,
+    notes: document.getElementById("notes").value.trim(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  if (!data.name || !data.phone) {
+    showMessage("اكتب اسم اللاعب ورقم هاتف ولي الأمر.", true);
+    return;
+  }
+
+  saveBtn.disabled = true;
+  showMessage("جارٍ حفظ البيانات...");
+
+  try {
+    if (editingId) {
+      await db.collection("players").doc(editingId).update(data);
+      showMessage("تم تحديث بيانات اللاعب بنجاح.");
+    } else {
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection("players").add(data);
+      showMessage("تم تسجيل اللاعب وحفظ بياناته بنجاح.");
+    }
+    resetForm();
+    await loadPlayers();
+  } catch (error) {
+    console.error(error);
+    showMessage("لم يتم الحفظ: " + error.message, true);
+  } finally {
+    saveBtn.disabled = false;
+  }
+});
+
+tbody.addEventListener("click", async event => {
+  const editId = event.target.dataset.edit;
+  const deleteId = event.target.dataset.delete;
+
+  if (editId) {
+    const p = allPlayers.find(x => x.id === editId);
+    if (!p) return;
+    editingId = p.id;
+    ["name","phone","birthDate","gender","branch","belt","startDate","notes"].forEach(key => {
+      document.getElementById(key).value = p[key] || "";
+    });
+    document.getElementById("formTitle").textContent = "تعديل بيانات اللاعب";
+    saveBtn.textContent = "حفظ التعديلات";
+    document.getElementById("cancelBtn").hidden = false;
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+
+  if (deleteId) {
+    const p = allPlayers.find(x => x.id === deleteId);
+    if (!p || !confirm("هل تريد حذف اللاعب " + p.name + "؟")) return;
+    try {
+      await db.collection("players").doc(deleteId).delete();
+      showMessage("تم حذف اللاعب.");
+      await loadPlayers();
+    } catch (error) {
+      showMessage("تعذر الحذف: " + error.message, true);
+    }
+  }
+});
+
+document.getElementById("cancelBtn").addEventListener("click", resetForm);
+document.getElementById("search").addEventListener("input", renderPlayers);
+
+try {
+  if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+  }
+  db = firebase.firestore();
+
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) {
+      loadPlayers();
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6">سجّل الدخول أولًا لعرض بيانات اللاعبين.</td></tr>';
+    }
+  });
+} catch (error) {
+  console.error(error);
+  showMessage("تعذر تشغيل Firebase. راجع ملف firebase-config.js.", true);
+}
+</script>
+</body>
+</html>
